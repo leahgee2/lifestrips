@@ -1,0 +1,149 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>LifeStrips</title>
+  <style>
+    body { font-family: sans-serif; margin: 2rem; }
+    .board { display: inline-block; vertical-align: top; margin: 1rem; padding: 1rem; border: 1px solid #ccc; border-radius: 10px; width: 300px; }
+    .tile { background: #f9f9f9; border: 1px solid #ddd; margin: 0.5rem 0; padding: 0.5rem; border-radius: 6px; cursor: pointer; }
+    .tile.done { text-decoration: line-through; color: gray; }
+    .expanded { font-size: 0.9em; color: #333; margin-top: 0.5rem; }
+    .controls button { margin: 0.2rem; }
+  </style>
+</head>
+<body>
+  <h1>LifeStrips</h1>
+  <div>
+    <input id="newBoardName" placeholder="New board name" />
+    <button onclick="addBoard()">Add Board</button>
+    <button onclick="undo()">Undo</button>
+  </div>
+  <div id="boards"></div>
+  <div class="board" style="background: #f0fff0">
+    <h2>Completed</h2>
+    <div id="completedList"></div>
+  </div>
+
+  <script>
+    const dataKey = "lifestrips-data";
+
+    const getData = () => JSON.parse(localStorage.getItem(dataKey)) || { boards: {}, completed: [], lastCompleted: null };
+    const setData = (data) => localStorage.setItem(dataKey, JSON.stringify(data));
+
+    let data = getData();
+
+    function render() {
+      const boardsDiv = document.getElementById("boards");
+      boardsDiv.innerHTML = "";
+      for (const boardName in data.boards) {
+        const board = document.createElement("div");
+        board.className = "board";
+        const header = document.createElement("h2");
+        header.textContent = boardName;
+        board.appendChild(header);
+        const addBtn = document.createElement("button");
+        addBtn.textContent = "+ Add Tile";
+        addBtn.onclick = () => addTile(boardName);
+        board.appendChild(addBtn);
+        data.boards[boardName].forEach((tile, i) => {
+          const div = document.createElement("div");
+          div.className = "tile";
+          div.innerHTML = `<strong>${tile.title}</strong>`;
+          if (tile.expanded) {
+            div.innerHTML += `<div class="expanded">
+              <textarea rows="3" style="width: 100%">${tile.notes}</textarea>
+              <br/><small>Created: ${tile.created}</small>
+            </div>`;
+            div.querySelector("textarea").oninput = (e) => {
+              tile.notes = e.target.value;
+              setData(data);
+            };
+          }
+          div.onclick = () => { tile.expanded = !tile.expanded; setData(data); render(); };
+          const controls = document.createElement("div");
+          controls.className = "controls";
+          if (i > 0) {
+            const up = document.createElement("button");
+            up.textContent = "↑";
+            up.onclick = (e) => { e.stopPropagation(); move(boardName, i, i - 1); };
+            controls.appendChild(up);
+          }
+          if (i < data.boards[boardName].length - 1) {
+            const down = document.createElement("button");
+            down.textContent = "↓";
+            down.onclick = (e) => { e.stopPropagation(); move(boardName, i, i + 1); };
+            controls.appendChild(down);
+          }
+          const done = document.createElement("button");
+          done.textContent = "Done";
+          done.onclick = (e) => { e.stopPropagation(); markDone(boardName, i); };
+          controls.appendChild(done);
+          div.appendChild(controls);
+          board.appendChild(div);
+        });
+        boardsDiv.appendChild(board);
+      }
+
+      const comp = document.getElementById("completedList");
+      comp.innerHTML = "";
+      data.completed.forEach(t => {
+        const div = document.createElement("div");
+        div.textContent = "✅ " + t.title;
+        comp.appendChild(div);
+      });
+      setData(data);
+    }
+
+    function addBoard() {
+      const name = document.getElementById("newBoardName").value.trim();
+      if (!name || data.boards[name]) return;
+      data.boards[name] = [];
+      render();
+    }
+
+    function addTile(boardName) {
+      const title = prompt("Task title?");
+      if (!title) return;
+      const tile = {
+        id: Date.now(),
+        title,
+        notes: "",
+        created: new Date().toLocaleString(),
+        expanded: false
+      };
+      data.boards[boardName].push(tile);
+      render();
+    }
+
+    function move(board, from, to) {
+      const tiles = data.boards[board];
+      const [moved] = tiles.splice(from, 1);
+      tiles.splice(to, 0, moved);
+      render();
+    }
+
+    function markDone(board, index) {
+      const tile = data.boards[board][index];
+      data.boards[board].splice(index, 1);
+      data.lastCompleted = tile;
+      data.completed.push(tile);
+      render();
+    }
+
+    function undo() {
+      if (!data.lastCompleted) return;
+      const board = prompt("Undo to which board?");
+      if (!board || !data.boards[board]) return;
+      data.completed.pop();
+      data.boards[board].push(data.lastCompleted);
+      data.lastCompleted = null;
+      render();
+    }
+
+    render();
+  </script>
+</body>
+</html>
